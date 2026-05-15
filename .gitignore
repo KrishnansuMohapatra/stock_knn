@@ -1,0 +1,46 @@
+# ─── Python ───────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# ─── Virtual Environments ─────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ─── IDE / Editor ─────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ─── OS Generated ─────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── uv / pip ─────────────────────────────────
+uv.lock
+
+# ─── Streamlit ─────────────────────────────────
+.streamlit/secrets.toml
+
+# ─── Other Projects ────────────────────────────
+stock_watchlist/
+
+# ─── Misc ──────────────────────────────────────
+*.log
+*.csv
+*.xlsx
+!requirements.txt
