@@ -1,15 +1,15 @@
 """
-Technical indicator computation using raw numpy and pandas only.
+Technical indicator computation using numpy and pandas only.
 """
+
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
 def _sma(series: pd.Series, window: int) -> pd.Series:
-    return series.rolling(window).mean()
+    return series.rolling(window, min_periods=window).mean()
 
 
 def _ema(series: pd.Series, span: int) -> pd.Series:
@@ -20,10 +20,14 @@ def _rsi(series: pd.Series, window: int = 14) -> pd.Series:
     delta = series.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-    avg_gain = gain.ewm(alpha=1 / window, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1 / window, adjust=False).mean()
+    avg_gain = gain.ewm(alpha=1 / window, adjust=False, min_periods=window).mean()
+    avg_loss = loss.ewm(alpha=1 / window, adjust=False, min_periods=window).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
+    rsi = 100 - (100 / (1 + rs))
+    rsi = rsi.mask((avg_loss == 0) & (avg_gain > 0), 100.0)
+    rsi = rsi.mask((avg_gain == 0) & (avg_loss > 0), 0.0)
+    rsi = rsi.mask((avg_gain == 0) & (avg_loss == 0), 50.0)
+    return rsi
 
 
 def _stochastic(
@@ -35,13 +39,15 @@ def _stochastic(
 ) -> tuple[pd.Series, pd.Series]:
     lowest_low = low.rolling(k_window).min()
     highest_high = high.rolling(k_window).max()
-    stoch_k = 100 * (close - lowest_low) / (highest_high - lowest_low).replace(0, np.nan)
+    denom = (highest_high - lowest_low).replace(0, np.nan)
+    stoch_k = 100 * (close - lowest_low) / denom
     stoch_d = stoch_k.rolling(d_window).mean()
     return stoch_k, stoch_d
 
 
 def _roc(series: pd.Series, window: int = 12) -> pd.Series:
-    return ((series - series.shift(window)) / series.shift(window).replace(0, np.nan)) * 100
+    prev = series.shift(window).replace(0, np.nan)
+    return ((series - series.shift(window)) / prev) * 100
 
 
 def _williams_r(
@@ -52,7 +58,8 @@ def _williams_r(
 ) -> pd.Series:
     highest_high = high.rolling(window).max()
     lowest_low = low.rolling(window).min()
-    return -100 * (highest_high - close) / (highest_high - lowest_low).replace(0, np.nan)
+    denom = (highest_high - lowest_low).replace(0, np.nan)
+    return -100 * (highest_high - close) / denom
 
 
 def _macd(
@@ -75,7 +82,7 @@ def _bollinger_bands(
     num_std: float = 2.0,
 ) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
     middle = _sma(series, window)
-    std = series.rolling(window).std()
+    std = series.rolling(window).std(ddof=0)
     upper = middle + num_std * std
     lower = middle - num_std * std
     width = (upper - lower) / middle.replace(0, np.nan)
@@ -97,7 +104,7 @@ def _atr(
         ],
         axis=1,
     ).max(axis=1)
-    return tr.ewm(alpha=1 / window, adjust=False).mean()
+    return tr.ewm(alpha=1 / window, adjust=False, min_periods=window).mean()
 
 
 def _obv(close: pd.Series, volume: pd.Series) -> pd.Series:
@@ -105,14 +112,17 @@ def _obv(close: pd.Series, volume: pd.Series) -> pd.Series:
     return (direction * volume).cumsum()
 
 
-def _vwap(
+def _vwap20(
     high: pd.Series,
     low: pd.Series,
     close: pd.Series,
     volume: pd.Series,
+    window: int = 20,
 ) -> pd.Series:
     typical_price = (high + low + close) / 3
-    return (typical_price * volume).cumsum() / volume.cumsum().replace(0, np.nan)
+    num = (typical_price * volume).rolling(window).sum()
+    den = volume.rolling(window).sum().replace(0, np.nan)
+    return num / den
 
 
 def _adx(
@@ -120,15 +130,15 @@ def _adx(
     low: pd.Series,
     close: pd.Series,
     window: int = 14,
-) -> pd.Series:
+) -> tuple[pd.Series, pd.Series, pd.Series]:
     prev_high = high.shift(1)
     prev_low = low.shift(1)
 
-    plus_dm = high - prev_high
-    minus_dm = prev_low - low
+    plus_dm_raw = high - prev_high
+    minus_dm_raw = prev_low - low
 
-    plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0.0)
-    minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0.0)
+    plus_dm = plus_dm_raw.where((plus_dm_raw > minus_dm_raw) & (plus_dm_raw > 0), 0.0)
+    minus_dm = minus_dm_raw.where((minus_dm_raw > plus_dm_raw) & (minus_dm_raw > 0), 0.0)
 
     atr = _atr(high, low, close, window)
 
@@ -139,7 +149,8 @@ def _adx(
     minus_di = 100 * smoothed_minus_dm / atr.replace(0, np.nan)
 
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
-    return dx.ewm(alpha=1 / window, adjust=False).mean()
+    adx = dx.ewm(alpha=1 / window, adjust=False, min_periods=window).mean()
+    return adx, plus_di, minus_di
 
 
 def _cci(
@@ -156,80 +167,66 @@ def _cci(
     return (typical_price - sma_tp) / (0.015 * mean_deviation.replace(0, np.nan))
 
 
-# ── Main Functions ────────────────────────────────────────────────────────────
-
 def add_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute all technical indicators using raw numpy and pandas,
-    then drop rows with NaN values introduced by rolling windows.
+    Compute technical indicators. Early bars stay NaN (charts can plot them);
+    callers must not assume the last row of MA200 exists on short histories.
     """
-    close = data["Close"].squeeze()
-    high = data["High"].squeeze()
-    low = data["Low"].squeeze()
-    volume = data["Volume"].squeeze()
+    out = data.copy()
+    close = out["Close"].squeeze()
+    high = out["High"].squeeze()
+    low = out["Low"].squeeze()
+    volume = out["Volume"].squeeze()
 
-    # ── Trend (Moving Averages) ──────────────────────────────────────────────
-    data["MA20"] = _sma(close, 20)
-    data["MA50"] = _sma(close, 50)
-    data["MA200"] = _sma(close, 200)
-    data["EMA12"] = _ema(close, 12)
-    data["EMA26"] = _ema(close, 26)
+    out["MA20"] = _sma(close, 20)
+    out["MA50"] = _sma(close, 50)
+    out["MA200"] = _sma(close, 200)
+    out["EMA12"] = _ema(close, 12)
+    out["EMA26"] = _ema(close, 26)
 
-    # ── Momentum ─────────────────────────────────────────────────────────────
-    data["RSI"] = _rsi(close, window=14)
+    out["RSI"] = _rsi(close, window=14)
 
     stoch_k, stoch_d = _stochastic(high, low, close)
-    data["STOCH_K"] = stoch_k
-    data["STOCH_D"] = stoch_d
+    out["STOCH_K"] = stoch_k
+    out["STOCH_D"] = stoch_d
 
-    data["ROC"] = _roc(close)
-    data["WILLR"] = _williams_r(high, low, close)
+    out["ROC"] = _roc(close)
+    out["WILLR"] = _williams_r(high, low, close)
 
-    # ── MACD ─────────────────────────────────────────────────────────────────
     macd_line, signal_line, histogram = _macd(close)
-    data["MACD"] = macd_line
-    data["MACD_S"] = signal_line
-    data["MACD_H"] = histogram
+    out["MACD"] = macd_line
+    out["MACD_S"] = signal_line
+    out["MACD_H"] = histogram
 
-    # ── Volatility ───────────────────────────────────────────────────────────
     bb_upper, bb_mid, bb_lower, bb_width = _bollinger_bands(close)
-    data["BB_U"] = bb_upper
-    data["BB_M"] = bb_mid
-    data["BB_L"] = bb_lower
-    data["BB_W"] = bb_width
-    data["ATR"] = _atr(high, low, close)
+    out["BB_U"] = bb_upper
+    out["BB_M"] = bb_mid
+    out["BB_L"] = bb_lower
+    out["BB_W"] = bb_width
+    out["ATR"] = _atr(high, low, close)
 
-    # ── Volume ───────────────────────────────────────────────────────────────
-    data["OBV"] = _obv(close, volume)
-    data["VWAP"] = _vwap(high, low, close, volume)
+    out["OBV"] = _obv(close, volume)
+    out["VWAP"] = _vwap20(high, low, close, volume)
 
-    # ── Trend Strength ───────────────────────────────────────────────────────
-    data["ADX"] = _adx(high, low, close)
-    data["CCI"] = _cci(high, low, close)
-
-    data.dropna(inplace=True)
-    return data
+    adx, plus_di, minus_di = _adx(high, low, close)
+    out["ADX"] = adx
+    out["PLUS_DI"] = plus_di
+    out["MINUS_DI"] = minus_di
+    out["CCI"] = _cci(high, low, close)
+    return out
 
 
 def add_ml_features(data: pd.DataFrame) -> pd.DataFrame:
     """
-    Add lagged and engineered features used by the ML models.
+    Features known at the close of day t. Target is the *next* session close.
+    Same-day OHLC is valid here because the forecast is for t+1, after t has closed.
     """
-    # ── Lagged Price & Volume Columns ────────────────────────────────────────
-    data["Prev_Close"] = data["Close"].shift(1)
-    data["Prev_Open"] = data["Open"].shift(1)
-    data["Prev_High"] = data["High"].shift(1)
-    data["Prev_Low"] = data["Low"].shift(1)
-    data["Prev_Volume"] = data["Volume"].shift(1)
-
-    # ── Derived Price Features ────────────────────────────────────────────────
-    data["Price_Range"] = data["High"] - data["Low"]
-    data["Price_Change"] = data["Close"] - data["Open"]
-
-    # ── Lagged Indicator Columns ──────────────────────────────────────────────
-    data["MA20_Lag"] = data["MA20"].shift(1)
-    data["RSI_Lag"] = data["RSI"].shift(1)
-    data["MACD_Lag"] = data["MACD"].shift(1)
-    data["ATR_Lag"] = data["ATR"].shift(1)
-
-    return data
+    out = data.copy()
+    out["Price_Range"] = out["High"] - out["Low"]
+    out["Price_Change"] = out["Close"] - out["Open"]
+    out["Ret_1"] = out["Close"].pct_change()
+    vol_ma = out["Volume"].rolling(20).mean()
+    out["Vol_Ratio"] = out["Volume"] / vol_ma.replace(0, np.nan)
+    out["Target_Close"] = out["Close"].shift(-1)
+    out["Target_Return"] = out["Close"].shift(-1) / out["Close"].replace(0, np.nan) - 1
+    return out

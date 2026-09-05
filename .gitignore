@@ -44,3 +44,4 @@ stock_watchlist/
 *.csv
 *.xlsx
 !requirements.txt
+.cache/

@@ -1,163 +1,150 @@
 <div align="center">
 
 # 📈 AI Stock Dashboard
-**Intelligent, real-time stock analysis and price prediction engine**
+**Educational daily-bar analysis, causal next-session forecasts, and a simulated paper broker**
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.55+-FF4B4B?style=for-the-badge&logo=streamlit)](https://streamlit.io/)
-[![Scikit-Learn](https://img.shields.io/badge/scikit--learn-1.8.0-F7931E?style=for-the-badge&logo=scikit-learn)](https://scikit-learn.org/)
-[![Plotly](https://img.shields.io/badge/Plotly-6.6.0-3F4F75?style=for-the-badge&logo=plotly)](https://plotly.com/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.40+-FF4B4B?style=for-the-badge&logo=streamlit)](https://streamlit.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-success?style=for-the-badge)](LICENSE)
 
-*Analyze Indian (NSE) and Global (US) stocks with composite AI signals, technical indicators, and machine learning models.*
+*India: NSE official traded bars. Global: Stooq EOD. Yahoo only if those fail. Not a live broker.*
 
 [**Explore the Repository**](https://github.com/KrishnansuMohapatra/stock_knn)
 
-<img src="screenshots/screenshot_01_top_1778815591920.png" alt="Dashboard Banner" width="100%" style="border-radius:10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-
 </div>
 
 ---
 
-## ✨ Features at a Glance
+## What this is
 
-🔥 **Real-time Technical Analysis**
-View interactive candlestick charts with overlays for Moving Averages (MA20, MA50, MA200) and Bollinger Bands.
+A Streamlit study desk on **free exchange data** (no paid key):
 
-🤖 **AI Trading Signals**
-Get definitive Buy / Sell / Hold signals based on a sophisticated composite score aggregated from 9+ technical indicators (RSI, MACD, Stochastic, ADX, CCI, Williams %R, OBV, etc.).
+| Market | Primary source | What you get |
+|---|---|---|
+| India (`*.NS`) | **NSE India official** JSON | Unadjusted traded OHLC + last traded price |
+| US / global | **Stooq** EOD CSV | Exchange session bars |
+| Fallback only | Yahoo Finance | Unofficial delayed scrape — labelled in the UI |
 
-🔮 **Machine Learning Price Predictions**
-Predict next-day closing prices using an ensemble of 4 regression models:
-*   **KNN Regressor** (Adjustable neighbors)
-*   **Ridge Regression**
-*   **Random Forest**
-*   **Gradient Boosting**
+Yahoo is **not** treated as real exchange data. If NSE and Stooq fail, the app says so.
 
-📑 **Automated AI Reports**
-Read natural-language analysis reports covering price summary, trend analysis, momentum, volatility, volume, and an overall assessment.
+- Candles with MA20 / MA50 / MA200 and Bollinger Bands
+- Composite study signal (RSI, MACD *crossovers*, signed ADX, Stochastic, CCI, Williams %R, OBV)
+- **Next-session close** models that only use information known at **today’s close**, plus a **persistence baseline** (`tomorrow ≈ today`)
+- Simulated **paper ticket** (INR + USD cash, discount-broker fees, 1.5×ATR stop, 2R target)
+- **Backtest** of the signal with **next-open fills**, slippage, fees, and buy-and-hold comparison
 
-🗺️ **Market Heatmap**
-Visualize 5-day return performance across major Indian and US stocks at a glance.
-
----
-
-## 🧠 How the Signal Engine Works
-
-Our bespoke signal engine aggregates individual indicators to formulate a **composite score ranging from -100 to +100**.
-
-| Score Range | Signal | Interpretation |
-|:---:|:---|:---|
-| **+35 to +100** | 🟢🟢 **STRONG BUY** | Overwhelming bullish consensus across indicators. |
-| **+15 to +34** | 🟢 **BUY** | Moderate bullish trend forming. |
-| **-14 to +14** | 🟡 **HOLD / NEUTRAL** | Ranging market; conflicting signals. |
-| **-34 to -15** | 🔴 **SELL** | Moderate bearish trend forming. |
-| **-100 to -35**| 🔴🔴 **STRONG SELL** | Overwhelming bearish consensus across indicators. |
+There is **no paid vendor and no brokerage API**. Paper trades never leave this browser session.
 
 ---
 
-## 🚀 Quick Start Guide
+## What this is not
 
-### Prerequisites
-- Python 3.11+
-- Internet connection (for Yahoo Finance API)
+- Not real-time (daily bars, Yahoo delay, 1-hour cache)
+- Not a live order gateway
+- Not financial advice
+- ML will often **lose to persistence**. That is shown on purpose.
 
-### Installation (via `uv` - Recommended for Speed)
+---
+
+## Signal map
+
+| Score | Label |
+|:---:|:---|
+| **+35 to +100** | STRONG BUY |
+| **+15 to +34** | BUY |
+| **−14 to +14** | HOLD / NEUTRAL |
+| **−34 to −15** | SELL |
+| **−100 to −35** | STRONG SELL |
+
+MACD points fire on an actual cross (previous bar vs this bar), not on every bar the histogram is positive. ADX is signed by +DI vs −DI.
+
+---
+
+## Quick start
+
+### `uv`
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/KrishnansuMohapatra/stock_knn.git
 cd stock_knn
-
-# 2. Sync dependencies
 uv sync
-
-# 3. Launch the dashboard!
 uv run streamlit run app.py
 ```
 
-### Installation (via `pip`)
+### `pip`
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/KrishnansuMohapatra/stock_knn.git
 cd stock_knn
-
-# 2. Create and activate virtual environment
 python -m venv .venv
-# On Windows:
-.venv\Scripts\activate
-# On macOS/Linux:
-source .venv/bin/activate
-
-# 3. Install dependencies
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# 4. Launch the dashboard!
 streamlit run app.py
 ```
 
-The app will open automatically at `http://localhost:8501`.
+Open `http://localhost:8501`.
 
----
+### Tests
 
-## 🛠️ Usage Tips
-
-1. **Select Market:** Choose between `🇮🇳 India`, `🌍 Global`, or input a `⭐ Custom` ticker.
-2. **Custom Tickers:** 
-   - US Stocks: `AAPL`, `TSLA`
-   - Indian NSE: Append `.NS` (e.g., `RELIANCE.NS`)
-   - Crypto: Use Yahoo format (e.g., `BTC-USD`)
-3. **Customize ML:** Adjust the KNN neighbors slider to see how the prediction changes in real-time.
-4. **Tune Indicators:** Modify RSI overbought/oversold limits directly from the sidebar.
-
----
-
-## 📸 Dashboard Previews
-
-<div align="center">
-  <img src="screenshots/screenshot_02_charts_1778815610426.png" width="49%">
-  <img src="screenshots/screenshot_04_bottom_1778815651977.png" width="49%">
-</div>
-
----
-
-## 📂 Project Structure
-
-```text
-stock_knn/
-├── app.py              # Main Streamlit orchestrator
-├── config.py           # Constants, tickers, feature lists
-├── styles.py           # Dashboard CSS themes
-├── data_loader.py      # Yahoo Finance API & caching layer
-├── indicators.py       # Technical indicator mathematics
-├── signals.py          # Composite scoring engine logic
-├── ml_models.py        # Model training and inference
-├── charts.py           # Plotly interactive visualizations
-├── report.py           # Natural language report generation
-└── requirements.txt    # Dependencies
+```bash
+python -m pytest tests -q
 ```
 
 ---
 
-## ⚠️ Troubleshooting
+## Usage
 
-**"No data found. Check ticker / date range."**
-- Verify the symbol on [Yahoo Finance](https://finance.yahoo.com).
-- Ensure Indian stocks have the `.NS` suffix.
-- Ensure your date range spans at least 200 trading days (required for the MA200 calculation).
-
-**Missing stocks in the Heatmap**
-- If a pre-loaded stock is delisted or renamed on Yahoo Finance, it is silently skipped to prevent the app from crashing.
+1. Pick **India**, **Global**, or a **custom** ticker (`AAPL`, `RELIANCE.NS`, `BTC-USD`).
+2. Keep at least ~60 trading days; MA200 needs ~200.
+3. Read the study signal, then size a **paper** BUY/SELL. Fills are last close + slippage.
+4. The backtest is the honest path: decisions at close, fills at the **next open**.
+5. If no ML model beats **Persistence**, ignore the price forecast.
 
 ---
 
-## ⚖️ Disclaimer
+## Project structure
 
-> **For educational and research purposes only.** This tool does not constitute financial advice. Algorithmic signals and ML predictions can be wrong and are subject to market volatility. Always do your own research (DYOR) before making investment decisions.
+```text
+stock_knn/
+├── app.py              # Streamlit UI
+├── config.py           # Tickers, features, paper defaults
+├── utils.py            # Money / currency / sanitise
+├── styles.py           # CSS
+├── data_loader.py      # Yahoo + TTL cache + batch heatmap
+├── indicators.py       # TA (pandas / numpy)
+├── signals.py          # Composite score
+├── ml_models.py        # Next-close models + persistence
+├── broker.py           # Fees, sizing, paper blotter
+├── backtest.py         # Next-open simulator
+├── charts.py           # Plotly
+├── report.py           # Narrative HTML
+├── tests/              # Leakage, signals, fees
+└── requirements.txt
+```
+
+---
+
+## Troubleshooting
+
+**No bars / demo series**
+- India: use `RELIANCE.NS` (NSE). Confirm the symbol on [nseindia.com](https://www.nseindia.com).
+- US: Stooq needs a plain ticker (`AAPL`), not `AAPL.NS`.
+- If the UI says Yahoo fallback, the exchange feeds failed (network/SSL/rate-limit).
+
+**Need at least 60 trading days**
+- Widen the date range. Indicators are not dropped from the chart; MA200 simply stays blank until it exists.
+
+**Heatmap missing names**
+- Yahoo rate-limits. The heatmap is cached for an hour and skipped per-ticker on failure.
+
+---
+
+## Disclaimer
+
+> For education and research only. Algorithmic signals and ML forecasts can be wrong. Simulated fills are not executions. Do your own research before any real-money decision.
 
 ---
 
 <div align="center">
-  <p>Built with ❤️ by <a href="https://github.com/KrishnansuMohapatra">Krishnansu Mohapatra</a></p>
+  <p>Built with Streamlit · yfinance · scikit-learn · Plotly</p>
 </div>

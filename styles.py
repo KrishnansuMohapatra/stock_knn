@@ -26,10 +26,24 @@ CUSTOM_CSS = """
         margin-top: 10px;
         line-height: 1.8;
     }
-    .score-bar {
-        height: 12px;
+    .ticket-box {
+        background: #1e2130;
+        border: 1px solid #374151;
+        border-radius: 12px;
+        padding: 16px 18px;
+        margin-bottom: 8px;
+        line-height: 1.6;
+        color: #e5e7eb;
+        font-size: 14px;
+    }
+    .warn-box {
+        background: #1f2937;
+        border-left: 3px solid #fbbf24;
+        padding: 10px 14px;
         border-radius: 6px;
-        margin: 6px 0 12px 0;
+        color: #e5e7eb;
+        font-size: 13px;
+        margin: 8px 0 14px 0;
     }
     .indicator-row {
         display: flex;
@@ -43,6 +57,7 @@ CUSTOM_CSS = """
     .metric-label { color: #9ca3af; font-size: 13px; }
     .metric-value { color: #f3f4f6; font-size: 15px; font-weight: 600; }
 
+    div[data-testid="stMetric"],
     div[data-testid="metric-container"] {
         background: #1e2130;
         border: 1px solid #374151;
